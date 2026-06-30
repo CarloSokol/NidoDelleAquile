@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<style>
+  body {
+    zoom: 0.85;
+  }
+
+  @media (max-width: 768px) {
+    body {
+      zoom: 1;
+    }
+  }
+</style>
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Riepilogo Ordine</title>
+  <link href="tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-200 p-6">
+<div class="max-w-7xl mx-auto bg-white p-6 rounded-2xl shadow-xl flex gap-6">
+  <!-- COLONNA SINISTRA: Logo + Gestione Tavoli -->
+  <div class="w-1/5 space-y-4">
+    <img src="logo.png" alt="Logo" class="h-24 mx-auto mb-2">
+    <h1 class="text-xl font-bold text-center mb-2">Menu</h1>
+
+    <div>
+      <label for="tavolo" class="block text-sm font-semibold mb-1">Nome del Tavolo:</label>
+      <input type="text" id="tavolo" placeholder="Es. Tavolo 1" class="p-1 text-sm border rounded w-full">
+      <button onclick="addTable()" class="bg-blue-500 text-white px-3 py-1 rounded mt-2 hover:bg-blue-600 w-full">
+        Aggiungi Tavolo
+      </button>
+    </div>
+
+    <div>
+      <label for="select-tavolo" class="block text-sm font-semibold mb-2">Seleziona il Tavolo:</label>
+      <select id="select-tavolo" class="p-2 text-sm border rounded w-full shadow-sm" onchange="changeTable()">
+        <option value="">Seleziona un Tavolo</option>
+      </select>
+
+      <button id="delete-tavolo-btn" onclick="deleteTable()" class="bg-red-500 text-white px-3 py-2 rounded mt-2 hover:bg-red-600 w-full" disabled>
+        Elimina Tavolo
+      </button>
+    </div>
+  </div>
+
+  <!-- COLONNA CENTRALE: Menu -->
+  <div class="w-4/5">
+    <input type="text" id="search" oninput="renderMenu()" placeholder="Cerca un piatto..." class="mb-4 p-2 w-full border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+    <div id="menu" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+  </div>
+</div>
+
+
+
+<div style="position: fixed; top: 5rem; right: 2rem; width: 400px; z-index: 50;" class="bg-gray-100 p-6 text-base rounded-2xl shadow-2xl max-h-[85vh] overflow-auto">
+  <h2 class="text-xl font-semibold mb-2">
+    Dettaglio Ordine - <span id="selected-table" class="text-blue-600">Nessun tavolo</span>
+  </h2>
+  <ul id="order-list" class="mt-4 space-y-2 text-gray-700"></ul>
+  <div id="bonus-list" class="mt-4 space-y-2 text-gray-700"></div>
+  <div class="mt-4 text-lg font-bold" id="total-price"></div>
+
+  <!-- Bottoni sotto il riepilogo -->
+  <div class="mt-6 space-y-2">
+    <button onclick="resetOrder()" class="w-full bg-gray-500 text-white px-4 py-2 rounded-xl hover:bg-gray-600">
+      Reset
+    </button>
+    <button onclick="printOrder()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700">
+      Stampa
+    </button>
+    <button onclick="printAllTables()" class="w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700">
+      Stampa Tutti i Tavoli
+    </button>
+    <button onclick="deleteAllTables()" class="w-full bg-red-700 text-white px-4 py-2 rounded-xl hover:bg-red-800">
+      Elimina Tutti i Tavoli
+    </button>
+    <button onclick="exportToExcel()" class="w-full bg-green-600 text-black px-4 py-2 rounded-xl hover:bg-green-700">
+      Stampa Excel
+    </button>
+  </div>
+</div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+
+
+  <script>
+    const items = [
+      { name: "Antipasto NIDO DELLE AQUILE", price: 8.25, category: "Antipasti" },
+      { name: "PATATINE FRITTE", price: 2.30, category: "Antipasti" },
+      { name: "CROCCHETTE", price: 3.43, category: "Antipasti" },
+      { name: "ARROSTICINI", price: 11.60, category: "Carne" },
+      { name: "CAVALLO", price: 12.62, category: "Carne" },
+      { name: "CAPOCOLLO DI SUINO", price: 9.17, category: "Carne" },
+      { name: "PETTO DI POLLO", price: 9.70, category: "Carne" },
+      { name: "SALSICCIA FRESCA", price: 9.33, category: "Carne" },
+      { name: "BOVINO", price: 13.75, category: "Carne" },
+      { name: "BOMBETTE", price: 9.96, category: "Carne" },
+      { name: "ENTRECOTE", price: 17.38, category: "Carne" },
+      { name: "HAMBURGER", price: 10.74, category: "Carne" },
+      { name: "COSTINE", price: 7.72, category: "Carne" },
+      { name: "WRUSTEL", price: 6.17, category: "Carne" },
+      { name: "FILETTO ORATA", price: 10.71, category: "Pesce" },
+      { name: "PESCE SPADA", price: 8.89, category: "Pesce" },
+      { name: "GAMBERONI", price: 12.00, category: "Pesce" },
+      { name: "FRITTURA CALAMARI", price: 9.85, category: "Pesce" },
+      { name: "FOCACCIA", price: 2.50, category: "Pizze" },
+      { name: "MARGHERITA", price: 3.95, category: "Pizze" },
+      { name: "T346", price: 5.60, category: "Pizze" },
+      { name: "EFA", price: 4.95, category: "Pizze" },
+      { name: "PROSCIUTTO E FUNGHI", price: 5.40, category: "Pizze" },
+      { name: "NAPOLI", price: 5.05, category: "Pizze" },
+      { name: "BOSCAIOLA", price: 5.15, category: "Pizze" },
+      { name: "F35", price: 6.55, category: "Pizze" },
+      { name: "CAPRICCIOSA", price: 5.60, category: "Pizze" },
+      { name: "DIAVOLA", price: 4.95, category: "Pizze" },
+      { name: "4 FORMAGGI", price: 6.15, category: "Pizze" },
+      { name: "T339", price: 5.95, category: "Pizze" },
+      { name: "NIDO DELLE AQUILE", price: 5.85, category: "Pizze" },
+      { name: "AGGIUNTA", price: 0.10, category: "Pizze" },
+      { name: "CAFFE A CIALDA", price: 0.33, category: "Bevande" },
+      { name: "ACQUA LT.0.5", price: 0.29, category: "Bevande" },
+      { name: "ACQUA LT.2", price: 0.70, category: "Bevande" },
+      { name: "LATTINE FANTA/COCACOLA CL.33", price: 0.85, category: "Bevande" },
+      { name: "COCA COLA ALLA SPINA DA 250 CC.", price: 0.78, category: "Bevande" },
+      { name: "COCA COLA ALLA SPINA DA 500 CC.", price: 1.56, category: "Bevande" },
+      { name: "SPINA BECKS DA 250 CC.", price: 1.07, category: "Birre" },
+      { name: "SPINA BECKS DA 500 CC.", price: 2.14, category: "Birre" },
+      { name: "SPINA TENNENTS DA 250 CC.", price: 1.46, category: "Birre" },
+      { name: "SPINA TENNENTS DA 500 CC.", price: 2.92, category: "Birre" },
+      { name: "BECKS Bottiglia Cl.33", price: 1.25, category: "Birre" },
+      { name: "DREHER BOTTIGLIA CL.33", price: 1.13, category: "Birre" },
+      { name: "SPINA Lupulus Da 250cl", price: 1.13, category: "Birre" },
+      { name: "SPINA Lupulus Da 500cl", price: 1.13, category: "Birre" },
+      { name: "TENNENTS Bottiglia Cl.33", price: 1.87, category: "Birre" },
+      { name: "VINO BOTTIGLIA", price: 7.55, category: "Vini e Alcolici" },
+      { name: "PROSECCO", price: 8.00, category: "Vini e Alcolici" },
+      { name: "APEROL", price: 0.89, category: "Vini e Alcolici" },
+      { name: "LUCANO", price: 0.86, category: "Vini e Alcolici" },
+      { name: "MONTENEGRO", price: 1.21, category: "Vini e Alcolici" },
+      { name: "GRAPPA BIANCA", price: 1.31, category: "Vini e Alcolici" },
+      { name: "SAMBUCA", price: 1.04, category: "Vini e Alcolici" },
+      { name: "LIMONCELLO", price: 0.85, category: "Vini e Alcolici" },
+      { name: "UNICUM", price: 1.03, category: "Vini e Alcolici" },
+      { name: "JEGERMEISTER", price: 1.03, category: "Vini e Alcolici" },
+      { name: "SAN MARZANO", price: 1.04, category: "Vini e Alcolici" },
+      { name: "AMARO DEL CAPO", price: 0.92, category: "Vini e Alcolici" },
+      { name: "SPUMONE", price: 2.50, category: "Dolci" }
+    ];
+
+    const tavoli = JSON.parse(localStorage.getItem('tavoli')) || {};  // Carica i tavoli dal localStorage
+    let currentTable = "";
+    let bonuses = [];
+
+    function init() {
+      renderMenu();
+      renderTables();
+    }
+
+    function renderMenu() {
+      const menu = document.getElementById("menu");
+      const searchTerm = document.getElementById("search").value.toLowerCase();
+      menu.innerHTML = "";
+      const grouped = {};
+      items.forEach(item => {
+        if (!item.name.toLowerCase().includes(searchTerm)) return;
+        if (!grouped[item.category]) grouped[item.category] = [];
+        grouped[item.category].push(item);
+      });
+      for (const category in grouped) {
+        const title = document.createElement("h3");
+        title.textContent = category;
+        title.className = "text-lg font-bold col-span-full mt-4 border-b pb-1";
+        menu.appendChild(title);
+        grouped[category].forEach(item => {
+          const card = document.createElement("div");
+          card.className = "bg-white border rounded-xl shadow p-2 flex justify-between items-center hover:shadow-lg transition";
+          card.innerHTML = `
+            <div>
+              <div class="font-semibold text-sm">${item.name}</div>
+              <div class="text-sm text-gray-600">${item.price.toFixed(2)}€</div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onclick="removeItem('${item.name}')" class="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded-full text-lg">−</button>
+              <button onclick="addItem('${item.name}')" class="bg-green-100 hover:bg-green-200 text-green-600 px-3 py-1 rounded-full text-lg">+</button>
+            </div>
+          `;
+          menu.appendChild(card);
+        });
+      }
+    }
+
+    function renderTables() {
+      const selectTavolo = document.getElementById("select-tavolo");
+      selectTavolo.innerHTML = "<option value=''>Seleziona un Tavolo</option>";
+      Object.keys(tavoli).forEach(table => {
+        const option = document.createElement("option");
+        option.textContent = table;
+        option.value = table;
+        selectTavolo.appendChild(option);
+      });
+    }
+
+    function changeTable() {
+      currentTable = document.getElementById("select-tavolo").value;
+      document.getElementById("selected-table").textContent = currentTable || "Nessun tavolo";
+      renderOrder();
+      document.getElementById("delete-tavolo-btn").disabled = !currentTable;
+    }
+
+let lastActiveButton = null;
+
+function flashButton(selector) {
+  const button = document.querySelector(selector);
+  if (!button) return;
+
+  // Rimuove l'evidenziazione dal precedente pulsante
+  if (lastActiveButton && lastActiveButton !== button) {
+    lastActiveButton.classList.remove("ring-2", "ring-offset-2", "ring-blue-400");
+  }
+
+  // Aggiunge evidenziazione al nuovo pulsante
+  button.classList.add("ring-2", "ring-offset-2", "ring-blue-400");
+  lastActiveButton = button;
+}
+
+    function addTable() {
+      const tableName = document.getElementById("tavolo").value;
+      if (tableName && !tavoli[tableName]) {
+        tavoli[tableName] = [];
+        localStorage.setItem('tavoli', JSON.stringify(tavoli));
+        renderTables();
+      }
+    }
+
+    function deleteTable() {
+  if (currentTable && confirm(`Vuoi eliminare il tavolo ${currentTable}?`)) {
+    delete tavoli[currentTable];
+    localStorage.setItem('tavoli', JSON.stringify(tavoli));
+    renderTables();
+    changeTable();  // Aggiorna il tavolo selezionato
+  }
+}
+
+function deleteAllTables() {
+  if (confirm("Sei sicuro di voler eliminare tutti i tavoli? Questa azione è irreversibile.")) {
+    localStorage.removeItem('tavoli');
+    location.reload(); // Ricarica la pagina per aggiornare tutto
+  }
+}
+
+function addItem(name) {
+  if (!currentTable) return;
+  tavoli[currentTable].push(name);
+  localStorage.setItem('tavoli', JSON.stringify(tavoli));
+  renderOrder();
+  flashButton(`button[onclick="addItem('${name}')"]`);
+}
+
+function removeItem(name) {
+  if (!currentTable) return;
+  const index = tavoli[currentTable].indexOf(name);
+  if (index > -1) {
+    tavoli[currentTable].splice(index, 1);
+    localStorage.setItem('tavoli', JSON.stringify(tavoli));
+    renderOrder();
+    flashButton(`button[onclick="removeItem('${name}')"]`);
+  }
+}
+
+    let bonusesPerTable = {};  // Bonus separati per tavolo
+
+    function renderOrder() {
+  const orderList = document.getElementById("order-list");
+  orderList.innerHTML = "";
+  if (currentTable && tavoli[currentTable]) {
+    const itemsCount = {};
+    // Conta quante volte ogni piatto è stato aggiunto
+    tavoli[currentTable].forEach(item => {
+      itemsCount[item] = (itemsCount[item] || 0) + 1;
+    });
+    
+    // Mostra ogni piatto con la sua quantità
+    for (const [item, count] of Object.entries(itemsCount)) {
+      const li = document.createElement("li");
+      li.className = "flex justify-between items-center py-1";
+      li.innerHTML = `${count > 1 ? `x${count} ` : ''}${item} 
+        <button onclick="removeItem('${item}')" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
+      orderList.appendChild(li);
+    }
+
+    // Aggiungi i bonus al dettaglio ordine
+    if (bonusesPerTable[currentTable] && bonusesPerTable[currentTable].length > 0) {
+      bonusesPerTable[currentTable].forEach((bonus, index) => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-center py-1";
+        li.innerHTML = `Bonus: ${bonus.toFixed(2)}€ 
+          <button onclick="removeBonus(${index})" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
+        orderList.appendChild(li);
+      });
+    }
+  }
+  updateTotalPrice();
+}
+
+// Funzione per aggiornare il totale (includendo i bonus)
+function updateTotalPrice() {
+  if (!currentTable || !tavoli[currentTable]) return;
+  const orderItems = tavoli[currentTable];
+  const total = orderItems.reduce((sum, itemName) => {
+    const item = items.find(i => i.name === itemName);
+    return sum + (item ? item.price : 0);
+  }, 0);
+  
+  // Somma dei bonus specifici per il tavolo
+  const totalWithBonuses = total + (bonusesPerTable[currentTable] || []).reduce((sum, bonus) => sum + bonus, 0);
+  
+  document.getElementById("total-price").textContent = `Totale: ${totalWithBonuses.toFixed(2)}€`;
+  renderBonuses();  // Aggiungi la funzione per visualizzare i bonus
+}
+
+// Funzione per visualizzare i bonus
+function renderBonuses() {
+  const bonusList = document.getElementById("bonus-list");
+  bonusList.innerHTML = "";
+  if (bonuses.length > 0) {
+    bonuses.forEach((bonus, index) => {
+      const li = document.createElement("li");
+      li.className = "flex justify-between items-center py-1";
+      li.innerHTML = `Aggiunta: ${bonus.toFixed(2)}€ 
+        <button onclick="removeBonus(${index})" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
+      bonusList.appendChild(li);
+    });
+  }
+}
+
+function resetOrder() {
+  if (!currentTable) return;
+  
+  // Resetta gli ordini del tavolo
+  tavoli[currentTable] = [];
+  
+  // Resetta anche i bonus del tavolo
+  bonusesPerTable[currentTable] = [];
+
+  // Rende nuovamente la lista dell'ordine
+  renderOrder();
+}
+
+function addBonus(amount) {
+  if (!currentTable) return;
+  if (!bonusesPerTable[currentTable]) {
+    bonusesPerTable[currentTable] = [];
+  }
+  bonusesPerTable[currentTable].push(amount);
+  renderOrder();  // Rende di nuovo l'ordine per visualizzare i bonus
+  updateTotalPrice();
+}
+
+function removeBonus(index) {
+  if (!currentTable || !bonusesPerTable[currentTable]) return;
+  bonusesPerTable[currentTable].splice(index, 1);
+  renderOrder();  // Rende di nuovo l'ordine per aggiornare la visualizzazione
+  updateTotalPrice();
+}
+
+
+// Funzione per generare e stampare lo scontrino
+function printOrder() {
+  if (!currentTable || !tavoli[currentTable]) return;
+
+  const orderItems = tavoli[currentTable];
+  const bonuses = bonusesPerTable[currentTable] || [];
+
+  const itemCounts = {};
+  orderItems.forEach(item => {
+    itemCounts[item] = (itemCounts[item] || 0) + 1;
+  });
+
+  const printWindow = window.open('', '_blank', 'width=600,height=400');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Scontrino</title>
+        <style>
+          body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; }
+          .container { padding: 20px; }
+          .title { text-align: center; font-size: 18px; font-weight: bold; }
+          .item { display: flex; justify-content: space-between; }
+          .footer { text-align: right; font-weight: bold; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <img src="logo.png" alt="Logo" style="max-height: 80px; display: block; margin: 0 auto;">
+          <h2 class="title">Riepilogo Ordine - Tavolo: ${currentTable}</h2>
+          <div>
+            <h3>Dettaglio Ordine:</h3>
+            <ul>
+              ${Object.entries(itemCounts).map(([itemName, count]) => {
+                const item = items.find(i => i.name === itemName);
+                const totalPrice = item ? item.price * count : 0;
+                return `
+                  <li class="item">
+                    <span>${itemName} x${count}</span>
+                    <span>${totalPrice.toFixed(2)}€</span>
+                  </li>
+                `;
+              }).join('')}
+            </ul>
+
+            ${bonuses.length > 0 ? `
+              <h3>Bonus:</h3>
+              <ul>
+                ${bonuses.map((bonus, idx) => `
+                  <li class="item">
+                    <span>Bonus ${idx + 1}</span>
+                    <span>${bonus.toFixed(2)}€</span>
+                  </li>
+                `).join('')}
+              </ul>
+            ` : ''}
+
+            <div class="footer">
+              Totale: ${(orderItems.reduce((sum, name) => {
+                const item = items.find(i => i.name === name);
+                return sum + (item ? item.price : 0);
+              }, 0) + bonuses.reduce((sum, b) => sum + b, 0)).toFixed(2)}€
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+
+function printAllTables() {
+  const printWindow = window.open('', '_blank', 'width=800,height=1000');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Riepilogo Tutti i Tavoli</title>
+        <style>
+          body { font-family: Arial, sans-serif; font-size: 14px; margin: 20px; }
+          .table-section { margin-bottom: 40px; border-bottom: 1px dashed #ccc; padding-bottom: 20px; }
+          .title { font-size: 18px; font-weight: bold; margin-bottom: 10px; text-align: center; }
+          .item { display: flex; justify-content: space-between; }
+          .footer { text-align: right; font-weight: bold; margin-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <img src="logo.png" alt="Logo" style="max-height: 80px; display: block; margin: 0 auto;">
+  `);
+
+  Object.keys(tavoli).forEach(tavolo => {
+    const orderItems = tavoli[tavolo];
+    const bonuses = bonusesPerTable[tavolo] || [];
+
+    const itemCounts = {};
+    orderItems.forEach(item => {
+      itemCounts[item] = (itemCounts[item] || 0) + 1;
+    });
+
+    const total = orderItems.reduce((sum, itemName) => {
+      const item = items.find(i => i.name === itemName);
+      return sum + (item ? item.price : 0);
+    }, 0);
+    const totalBonuses = bonuses.reduce((sum, b) => sum + b, 0);
+    const totalFinal = total + totalBonuses;
+
+    printWindow.document.write(`
+      <div class="table-section">
+        <div class="title">Tavolo: ${tavolo}</div>
+        <ul>
+          ${Object.entries(itemCounts).map(([itemName, count]) => {
+            const item = items.find(i => i.name === itemName);
+            const totalPrice = item ? item.price * count : 0;
+            return `
+              <li class="item">
+                <span>${itemName} x${count}</span>
+                <span>${totalPrice.toFixed(2)}€</span>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+
+        ${bonuses.length > 0 ? `
+          <h4>Bonus:</h4>
+          <ul>
+            ${bonuses.map((bonus, idx) => `
+              <li class="item">
+                <span>Bonus ${idx + 1}</span>
+                <span>${bonus.toFixed(2)}€</span>
+              </li>
+            `).join('')}
+          </ul>
+        ` : ''}
+
+        <div class="footer">Totale Tavolo ${tavolo}: ${totalFinal.toFixed(2)}€</div>
+      </div>
+    `);
+  });
+
+  printWindow.document.write(`
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+
+function exportToExcel() {
+  const allItemCounts = {};
+  for (const tavolo in tavoli) {
+    tavoli[tavolo].forEach(item => {
+      allItemCounts[item] = (allItemCounts[item] || 0) + 1;
+    });
+  }
+
+  const data = Object.entries(allItemCounts).map(([name, count]) => ({
+    "Prodotto": name,
+    "Quantità": count
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Riepilogo");
+
+  XLSX.writeFile(workbook, "Quantità.xlsx");
+}
+
+// 👇 QUI AGGIUNGI window.onload
+window.onload = function () {
+  init();
+};
+  </script>
+
+</body>
+</html>
