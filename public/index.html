@@ -78,16 +78,6 @@
 
 <script>
     const socket = io();
-  // Se la cucina completa l'ordine, possiamo mostrare una notifica visiva sul tavolo
-    socket.on('ordine_completato_cucina', (dati) => {
-        // Se siamo il gestore (non un cliente da QR)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (!urlParams.get('tavolo')) {
-            alert(`📢 I piatti per il ${dati.tavolo} sono PRONTI in cucina!`);
-            // I piatti sono già dentro l'oggetto 'tavoli' locale, quindi rimangono lì pronti per la stampa!
-            renderOrder(); 
-        }
-    });
 
     const items = [
       { name: "Antipasto NIDO DELLE AQUILE", price: 8.25, category: "Antipasti" },
@@ -177,6 +167,15 @@
       } else {
         renderTables();
       }
+
+      // Ascolta la cucina: quando un ordine è pronto, avvisa l'admin a schermo
+      socket.on('ordine_completato_cucina', (dati) => {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get('tavolo')) {
+            alert(`📢 Piatti pronti in cucina per il ${dati.tavolo}!`);
+            renderOrder();
+        }
+      });
     }
 
     function renderMenu() {
@@ -330,37 +329,14 @@
       socket.emit('nuovo_ordine', pacchettoOrdine);
       alert(`🚀 Ordine inviato con successo alla cassa per il ${currentTable}!`);
       
-      // 🚀 MODIFICA QUI: Svuota il carrello dello schermo SOLO se è il CLIENTE dal QR code.
-      // Se è il GESTORE/CAMERIERE a mandarlo, i piatti rimangono scritti a schermo per lo scontrino!
+      // Svuota lo stato locale del carrello SOLO se l'utente è il CLIENTE (QR code)
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('tavolo')) { 
-        // È un cliente QR
+      if (urlParams.get('tavolo')) {
         tavoli[currentTable] = [];
         localStorage.setItem('tavoli', JSON.stringify(tavoli));
         renderOrder();
       }
-      // Se è il gestore, non svuota nulla! Rimane tutto salvato sul tavolo.
-    }
-
-      const orderItems = tavoli[currentTable];
-      const totaleOrdine = orderItems.reduce((sum, itemName) => {
-        const item = items.find(i => i.name === itemName);
-        return sum + (item ? item.price : 0);
-      }, 0);
-
-      const pacchettoOrdine = {
-        tavolo: currentTable,
-        piatti: orderItems,
-        totale: totaleOrdine
-      };
-
-      socket.emit('nuovo_ordine', pacchettoOrdine);
-
-      alert(`🚀 Ordine inviato con successo alla cassa per il ${currentTable}!`);
-      
-      tavoli[currentTable] = [];
-      localStorage.setItem('tavoli', JSON.stringify(tavoli));
-      renderOrder();
+      // Se è l'admin, i piatti restano visibili a schermo pronti per scontrino/Excel
     }
 
     function deleteTable() {
