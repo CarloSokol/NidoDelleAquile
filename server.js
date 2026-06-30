@@ -14,6 +14,12 @@ let idOrdineCorrente = 1;
 
 app.use(express.static('public')); // Cartella per i file HTML
 
+// 🚀 MODIFICA QUI: Gestiamo la pagina iniziale (Root)
+// Questo dice al server di mostrare Ordini.html quando si va sul link principale
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
 // 3. Gestiamo le connessioni WebSocket
 io.on('connection', (socket) => {
     console.log('Un dispositivo si è connesso');
