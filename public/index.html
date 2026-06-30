@@ -173,7 +173,18 @@
         const params = new URLSearchParams(window.location.search);
         if (!params.get('tavolo')) {
             alert(`📢 Piatti pronti in cucina per il ${dati.tavolo}!`);
-            renderOrder();
+            if (currentTable === dati.tavolo) {
+                socket.emit('richiedi_ordine_tavolo', currentTable);
+            }
+        }
+      });
+
+      // Riceve i piatti in tempo reale dal server per il tavolo selezionato
+      socket.on('risposta_ordine_tavolo', (piattiAggiornati) => {
+        if (currentTable) {
+          tavoli[currentTable] = piattiAggiornati;
+          localStorage.setItem('tavoli', JSON.stringify(tavoli));
+          renderOrder();
         }
       });
     }
@@ -225,7 +236,13 @@
     function changeTable() {
       currentTable = document.getElementById("select-tavolo").value;
       document.getElementById("selected-table").textContent = currentTable || "Nessun tavolo";
-      renderOrder();
+      
+      if (currentTable) {
+        // Chiede al server i dati dell'ordine per questo tavolo specifico
+        socket.emit('richiedi_ordine_tavolo', currentTable);
+      } else {
+        renderOrder();
+      }
       document.getElementById("delete-tavolo-btn").disabled = !currentTable;
     }
 
@@ -329,14 +346,12 @@
       socket.emit('nuovo_ordine', pacchettoOrdine);
       alert(`🚀 Ordine inviato con successo alla cassa per il ${currentTable}!`);
       
-      // Svuota lo stato locale del carrello SOLO se l'utente è il CLIENTE (QR code)
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('tavolo')) {
         tavoli[currentTable] = [];
         localStorage.setItem('tavoli', JSON.stringify(tavoli));
         renderOrder();
       }
-      // Se è l'admin, i piatti restano visibili a schermo pronti per scontrino/Excel
     }
 
     function deleteTable() {
