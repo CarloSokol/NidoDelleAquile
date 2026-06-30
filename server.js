@@ -39,6 +39,19 @@ app.get('/cucina', (req, res) => {
 io.on('connection', (socket) => {
     console.log('Un dispositivo si è connesso');
 
+    // Il gestore seleziona un tavolo e chiede al server quali piatti sono associati ad esso
+    socket.on('richiedi_ordine_tavolo', (nomeTavolo) => {
+        // Cerchiamo se esiste un ordine attivo (in accettazione, cucina o pronto) per questo tavolo
+        let ordineTavolo = ordini.find(o => o.tavolo === nomeTavolo);
+        if (ordineTavolo) {
+            // Se esiste, mandiamo i piatti all'admin
+            socket.emit('risposta_ordine_tavolo', ordineTavolo.piatti);
+        } else {
+            // Se non c'è nessun ordine attivo, mandiamo un array vuoto
+            socket.emit('risposta_ordine_tavolo', []);
+        }
+    });
+
     // Riceve un nuovo ordine inviato da un cliente (QR) o cameriere
     socket.on('nuovo_ordine', (datiOrdine) => {
         let nuovoOrdine = {
