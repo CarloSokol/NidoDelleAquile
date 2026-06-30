@@ -78,6 +78,16 @@
 
 <script>
     const socket = io();
+  // Se la cucina completa l'ordine, possiamo mostrare una notifica visiva sul tavolo
+    socket.on('ordine_completato_cucina', (dati) => {
+        // Se siamo il gestore (non un cliente da QR)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.get('tavolo')) {
+            alert(`📢 I piatti per il ${dati.tavolo} sono PRONTI in cucina!`);
+            // I piatti sono già dentro l'oggetto 'tavoli' locale, quindi rimangono lì pronti per la stampa!
+            renderOrder(); 
+        }
+    });
 
     const items = [
       { name: "Antipasto NIDO DELLE AQUILE", price: 8.25, category: "Antipasti" },
@@ -304,6 +314,33 @@
         alert("Il carrello è vuoto! Scegli qualcosa prima di inviare.");
         return;
       }
+
+      const orderItems = tavoli[currentTable];
+      const totaleOrdine = orderItems.reduce((sum, itemName) => {
+        const item = items.find(i => i.name === itemName);
+        return sum + (item ? item.price : 0);
+      }, 0);
+
+      const pacchettoOrdine = {
+        tavolo: currentTable,
+        piatti: orderItems,
+        totale: totaleOrdine
+      };
+
+      socket.emit('nuovo_ordine', pacchettoOrdine);
+      alert(`🚀 Ordine inviato con successo alla cassa per il ${currentTable}!`);
+      
+      // 🚀 MODIFICA QUI: Svuota il carrello dello schermo SOLO se è il CLIENTE dal QR code.
+      // Se è il GESTORE/CAMERIERE a mandarlo, i piatti rimangono scritti a schermo per lo scontrino!
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('tavolo')) { 
+        // È un cliente QR
+        tavoli[currentTable] = [];
+        localStorage.setItem('tavoli', JSON.stringify(tavoli));
+        renderOrder();
+      }
+      // Se è il gestore, non svuota nulla! Rimane tutto salvato sul tavolo.
+    }
 
       const orderItems = tavoli[currentTable];
       const totaleOrdine = orderItems.reduce((sum, itemName) => {
