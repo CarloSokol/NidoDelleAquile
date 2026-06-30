@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schermo Cucina</title>
+  <link href="tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-black text-white p-6">
+  <header class="mb-6 border-b border-gray-800 pb-4">
+    <h1 class="text-3xl font-extrabold text-yellow-500 tracking-wide">👨‍🍳 COMANDE CUCINA</h1>
+  </header>
+
+  <div id="comande-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    socket.on('aggiorna_cucina', (ordiniInCucina) => {
+      const container = document.getElementById('comande-container');
+      container.innerHTML = "";
+
+      if (ordiniInCucina.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full text-center py-12 text-gray-600 text-xl font-medium italic">
+            Nessun ordine da preparare al momento. Riposati! ☕
+          </div>`;
+        return;
+      }
+
+      ordiniInCucina.forEach(ordine => {
+        // Raggruppa piatti
+        const conteggioPiatti = {};
+        ordine.piatti.forEach(p => conteggioPiatti[p] = (conteggioPiatti[p] || 0) + 1);
+
+        const card = document.createElement('div');
+        card.className = "bg-gray-900 border-2 border-yellow-600 rounded-2xl p-5 shadow-2xl flex flex-col justify-between";
+
+        const listaPiattiHTML = Object.entries(conteggioPiatti)
+          .map(([piatto, qta]) => `
+            <li class="flex justify-between items-center text-lg py-1 border-b border-gray-800">
+              <span class="text-white font-semibold">${piatto}</span>
+              <span class="bg-yellow-500 text-black font-black px-3 py-0.5 rounded-lg text-xl">X${qta}</span>
+            </li>`)
+          .join('');
+
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-center mb-4 pb-2 border-b-2 border-gray-800">
+              <h2 class="text-2xl font-black text-yellow-400 uppercase tracking-tight">${ordine.tavolo}</h2>
+              <span class="text-xs font-mono text-gray-500">ID: #${ordine.id}</span>
+            </div>
+            <ul class="space-y-2 mb-6">${listaPiattiHTML}</ul>
+          </div>
+          <button onclick="completato(${ordine.id})" class="w-full bg-green-600 hover:bg-green-700 text-white text-lg font-black py-3 rounded-xl transition duration-150 active:scale-95 uppercase tracking-wide">
+            ✔ FATTO / PRONTO
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    });
+
+    function completato(id) {
+      socket.emit('ordine_pronto', id);
+    }
+  </script>
+</body>
+</html>

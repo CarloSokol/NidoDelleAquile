@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pannello Cassa - Approvazione Ordini</title>
+  <link href="tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white p-6">
+  <div class="max-w-6xl mx-auto">
+    <header class="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
+      <h1 class="text-3xl font-bold text-green-400">🖥️ Controllo Cassa</h1>
+      <span class="bg-gray-800 px-4 py-2 rounded-lg font-mono text-sm">Stato: Connesso in tempo reale</span>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <h2 class="text-xl font-semibold mb-4 text-orange-400 border-l-4 border-orange-500 pl-2">In Attesa di Approvazione</h2>
+        <div id="ordini-attesa" class="space-y-4"></div>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-4 text-blue-400 border-l-4 border-blue-500 pl-2">Ordini in Lavorazione / Evasi</h2>
+        <div id="ordini-attivi" class="space-y-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Ascolta gli aggiornamenti dal server
+    socket.on('aggiorna_cassa', (ordini) => {
+      const contenitoreAttesa = document.getElementById('ordini-attesa');
+      const contenitoreAttivi = document.getElementById('ordini-attivi');
+      
+      contenitoreAttesa.innerHTML = "";
+      contenitoreAttivi.innerHTML = "";
+
+      if (ordini.length === 0) {
+        contenitoreAttesa.innerHTML = "<p class='text-gray-500 italic'>Nessun nuovo ordine dai tavoli.</p>";
+        contenitoreAttivi.innerHTML = "<p class='text-gray-500 italic'>Nessun ordine attivo al momento.</p>";
+        return;
+      }
+
+      ordini.forEach(ordine => {
+        // Conta i piatti duplicati per mostrarli compatti (es: x2 MARGHERITA)
+        const conteggioPiatti = {};
+        ordine.piatti.forEach(p => conteggioPiatti[p] = (conteggioPiatti[p] || 0) + 1);
+        
+        const listaPiattiHTML = Object.entries(conteggioPiatti)
+          .map(([piatto, qta]) => `<li><span class="text-green-400 font-bold">${qta}x</span> ${piatto}</li>`)
+          .join('');
+
+        const card = document.createElement('div');
+        card.className = "bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700";
+        
+        if (ordine.stato === 'In Accettazione') {
+          card.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="text-lg font-bold text-white">${ordine.tavolo}</h3>
+              <span class="bg-orange-900 text-orange-300 text-xs px-2 py-1 rounded">Da Approvare</span>
+            </div>
+            <ul class="text-sm text-gray-300 space-y-1 mb-4">${listaPiattiHTML}</ul>
+            <div class="flex justify-between items-center pt-2 border-t border-gray-700">
+              <span class="text-lg font-bold text-white">${ordine.totale.toFixed(2)}€</span>
+              <div class="space-x-2">
+                <button onclick="rifiutaOrdine(${ordine.id})" class="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 rounded-lg font-bold">Rifiuta</button>
+                <button onclick="accettaOrdine(${ordine.id})" class="bg-green-500 hover:bg-green-600 text-black text-sm px-3 py-1.5 rounded-lg font-bold">✅ Accetta e Manda in Cucina</button>
+              </div>
+            </div>
+          `;
+          contenitoreAttesa.appendChild(card);
+        } else {
+          // Stato: In Cucina o Pronto
+          const coloreStato = ordine.stato === 'In Cucina' ? 'text-yellow-400' : 'text-green-400';
+          card.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="text-lg font-bold text-white">${ordine.tavolo} <span class="text-xs text-gray-400 ml-2">#${ordine.id}</span></h3>
+              <span class="${coloreStato} font-mono text-sm font-bold uppercase">${ordine.stato}</span>
+            </div>
+            <ul class="text-sm text-gray-400 space-y-1 mb-2">${listaPiattiHTML}</ul>
+            <div class="text-right font-bold text-sm text-gray-300 border-t border-gray-700 pt-1">
+              Totale: ${ordine.totale.toFixed(2)}€
+            </div>
+          `;
+          contenitoreAttivi.appendChild(card);
+        }
+      });
+    });
+
+    function accettaOrdine(id) {
+      socket.emit('approva_ordine', id);
+    }
+
+    function rifiutaOrdine(id) {
+      if(confirm("Sei sicuro di voler rifiutare e cancellare questo ordine?")) {
+         // Per ora lo rimuoviamo semplicemente riutilizzando la logica di pulizia
+         // Nota: puoi mappare un evento custom se vuoi notificare il cliente, per ora lo eliminiamo
+         socket.emit('cancella_ordine_cassa', id); 
+      }
+    }
+  </script>
+</body>
+</html>
