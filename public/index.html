@@ -15,14 +15,15 @@
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Riepilogo Ordine</title>
+  <title>Ordinazione Ristorante</title>
   <link href="tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-200 p-6">
 <div class="max-w-7xl mx-auto bg-white p-6 rounded-2xl shadow-xl flex gap-6">
-  <div class="w-1/5 space-y-4">
+  
+  <div id="admin-sidebar" class="w-1/5 space-y-4">
     <img src="logo.png" alt="Logo" class="h-24 mx-auto mb-2">
-    <h1 class="text-xl font-bold text-center mb-2">Menu</h1>
+    <h1 class="text-xl font-bold text-center mb-2">Pannello Admin</h1>
 
     <div>
       <label for="tavolo" class="block text-sm font-semibold mb-1">Nome del Tavolo:</label>
@@ -37,14 +38,13 @@
       <select id="select-tavolo" class="p-2 text-sm border rounded w-full shadow-sm" onchange="changeTable()">
         <option value="">Seleziona un Tavolo</option>
       </select>
-
       <button id="delete-tavolo-btn" onclick="deleteTable()" class="bg-red-500 text-white px-3 py-2 rounded mt-2 hover:bg-red-600 w-full" disabled>
         Elimina Tavolo
       </button>
     </div>
   </div>
 
-  <div class="w-4/5">
+  <div id="menu-container" class="w-4/5">
     <input type="text" id="search" oninput="renderMenu()" placeholder="Cerca un piatto..." class="mb-4 p-2 w-full border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
     <div id="menu" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
   </div>
@@ -59,27 +59,26 @@
   <div class="mt-4 text-lg font-bold" id="total-price"></div>
 
   <div class="mt-6 space-y-2">
-    <button onclick="resetOrder()" class="w-full bg-gray-500 text-white px-4 py-2 rounded-xl hover:bg-gray-600">
-      Reset
+    <button onclick="inviaOrdineInCucina()" class="w-full bg-orange-500 text-white font-bold px-4 py-3 rounded-xl hover:bg-orange-600 shadow-md transition transform active:scale-95">
+      🚀 INVIA ORDINE IN CASSA
     </button>
-    <button onclick="printOrder()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700">
-      Stampa
-    </button>
-    <button onclick="printAllTables()" class="w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700">
-      Stampa Tutti i Tavoli
-    </button>
-    <button onclick="deleteAllTables()" class="w-full bg-red-700 text-white px-4 py-2 rounded-xl hover:bg-red-800">
-      Elimina Tutti i Tavoli
-    </button>
-    <button onclick="exportToExcel()" class="w-full bg-green-600 text-black px-4 py-2 rounded-xl hover:bg-green-700">
-      Stampa Excel
-    </button>
+    
+    <div id="admin-buttons" class="space-y-2 pt-2 border-t border-gray-300">
+        <button onclick="resetOrder()" class="w-full bg-gray-500 text-white px-4 py-2 rounded-xl hover:bg-gray-600">Reset</button>
+        <button onclick="printOrder()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700">Stampa</button>
+        <button onclick="printAllTables()" class="w-full bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700">Stampa Tutti i Tavoli</button>
+        <button onclick="deleteAllTables()" class="w-full bg-red-700 text-white px-4 py-2 rounded-xl hover:bg-red-800">Elimina Tutti i Tavoli</button>
+        <button onclick="exportToExcel()" class="w-full bg-green-600 text-black px-4 py-2 rounded-xl hover:bg-green-700">Stampa Excel</button>
+    </div>
   </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
+    const socket = io();
+
     const items = [
       { name: "Antipasto NIDO DELLE AQUILE", price: 8.25, category: "Antipasti" },
       { name: "PATATINE FRITTE", price: 2.30, category: "Antipasti" },
@@ -143,14 +142,31 @@
       { name: "SPUMONE", price: 2.50, category: "Dolci" }
     ];
 
-    const tavoli = JSON.parse(localStorage.getItem('tavoli')) || {};
+    let tavoli = JSON.parse(localStorage.getItem('tavoli')) || {};
     let currentTable = "";
-    let bonuses = [];
     let bonusesPerTable = {};
 
     function init() {
       renderMenu();
-      renderTables();
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const tavoloDaUrl = urlParams.get('tavolo');
+
+      if (tavoloDaUrl) {
+        currentTable = tavoloDaUrl;
+        if (!tavoli[currentTable]) {
+            tavoli[currentTable] = [];
+        }
+        document.getElementById("selected-table").textContent = currentTable;
+        
+        // Modalità Cliente (Nasconde gli elementi gestore)
+        document.getElementById("admin-sidebar").style.display = "none";
+        document.getElementById("admin-buttons").style.display = "none";
+        document.getElementById("menu-container").className = "w-full";
+        renderOrder();
+      } else {
+        renderTables();
+      }
     }
 
     function renderMenu() {
@@ -204,64 +220,25 @@
       document.getElementById("delete-tavolo-btn").disabled = !currentTable;
     }
 
-    let lastActiveButton = null;
-
-    function flashButton(selector) {
-      const button = document.querySelector(selector);
-      if (!button) return;
-
-      if (lastActiveButton && lastActiveButton !== button) {
-        lastActiveButton.classList.remove("ring-2", "ring-offset-2", "ring-blue-400");
-      }
-
-      button.classList.add("ring-2", "ring-offset-2", "ring-blue-400");
-      lastActiveButton = button;
-    }
-
     function addTable() {
       const tableInput = document.getElementById("tavolo");
       const tableName = tableInput.value.trim();
-
-      if (!tableName) {
-        alert("Per favore, inserisci un nome o un numero per il tavolo!");
-        return;
-      }
-
-      if (tavoli[tableName]) {
-        alert("Questo tavolo esiste già!");
-        return;
-      }
-
+      if (!tableName) { alert("Inserisci un nome o numero per il tavolo!"); return; }
+      if (tavoli[tableName]) { alert("Questo tavolo esiste già!"); return; }
+      
       tavoli[tableName] = [];
       localStorage.setItem('tavoli', JSON.stringify(tavoli));
       
       renderTables();
-      
       document.getElementById("select-tavolo").value = tableName;
       changeTable();
       tableInput.value = "";
     }
 
-    function deleteTable() {
-      if (currentTable && confirm(`Vuoi eliminare il tavolo ${currentTable}?`)) {
-        delete tavoli[currentTable];
-        localStorage.setItem('tavoli', JSON.stringify(tavoli));
-        renderTables();
-        changeTable();
-      }
-    }
-
-    function deleteAllTables() {
-      if (confirm("Sei sicuro di voler eliminare tutti i tavoli? Questa azione è irreversibile.")) {
-        localStorage.removeItem('tavoli');
-        location.reload();
-      }
-    }
-
     function addItem(name) {
-      if (!currentTable) {
-        alert("Per favore, seleziona o aggiungi un tavolo prima di inserire i piatti!");
-        return;
+      if (!currentTable) { 
+        alert("Per favore, seleziona o aggiungi un tavolo prima di inserire i piatti!"); 
+        return; 
       }
       tavoli[currentTable].push(name);
       localStorage.setItem('tavoli', JSON.stringify(tavoli));
@@ -280,14 +257,23 @@
       }
     }
 
+    let lastActiveButton = null;
+    function flashButton(selector) {
+      const button = document.querySelector(selector);
+      if (!button) return;
+      if (lastActiveButton && lastActiveButton !== button) {
+        lastActiveButton.classList.remove("ring-2", "ring-offset-2", "ring-blue-400");
+      }
+      button.classList.add("ring-2", "ring-offset-2", "ring-blue-400");
+      lastActiveButton = button;
+    }
+
     function renderOrder() {
       const orderList = document.getElementById("order-list");
       orderList.innerHTML = "";
       if (currentTable && tavoli[currentTable]) {
         const itemsCount = {};
-        tavoli[currentTable].forEach(item => {
-          itemsCount[item] = (itemsCount[item] || 0) + 1;
-        });
+        tavoli[currentTable].forEach(item => { itemsCount[item] = (itemsCount[item] || 0) + 1; });
         
         for (const [item, count] of Object.entries(itemsCount)) {
           const li = document.createElement("li");
@@ -295,16 +281,6 @@
           li.innerHTML = `${count > 1 ? `x${count} ` : ''}${item} 
             <button onclick="removeItem('${item}')" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
           orderList.appendChild(li);
-        }
-
-        if (bonusesPerTable[currentTable] && bonusesPerTable[currentTable].length > 0) {
-          bonusesPerTable[currentTable].forEach((bonus, index) => {
-            const li = document.createElement("li");
-            li.className = "flex justify-between items-center py-1";
-            li.innerHTML = `Bonus: ${bonus.toFixed(2)}€ 
-              <button onclick="removeBonus(${index})" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
-            orderList.appendChild(li);
-          });
         }
       }
       updateTotalPrice();
@@ -320,219 +296,47 @@
         const item = items.find(i => i.name === itemName);
         return sum + (item ? item.price : 0);
       }, 0);
-      
-      const totalWithBonuses = total + (bonusesPerTable[currentTable] || []).reduce((sum, bonus) => sum + bonus, 0);
-      
-      document.getElementById("total-price").textContent = `Totale: ${totalWithBonuses.toFixed(2)}€`;
-      renderBonuses();
+      document.getElementById("total-price").textContent = `Totale: ${total.toFixed(2)}€`;
     }
 
-    function renderBonuses() {
-      const bonusList = document.getElementById("bonus-list");
-      bonusList.innerHTML = "";
-      if (bonuses.length > 0) {
-        bonuses.forEach((bonus, index) => {
-          const li = document.createElement("li");
-          li.className = "flex justify-between items-center py-1";
-          li.innerHTML = `Aggiunta: ${bonus.toFixed(2)}€ 
-            <button onclick="removeBonus(${index})" class="text-red-500 hover:text-red-700 text-xl">−</button>`;
-          bonusList.appendChild(li);
-        });
+    function inviaOrdineInCucina() {
+      if (!currentTable || !tavoli[currentTable] || tavoli[currentTable].length === 0) {
+        alert("Il carrello è vuoto! Scegli qualcosa prima di inviare.");
+        return;
       }
-    }
-
-    function resetOrder() {
-      if (!currentTable) return;
-      tavoli[currentTable] = [];
-      bonusesPerTable[currentTable] = [];
-      renderOrder();
-    }
-
-    function addBonus(amount) {
-      if (!currentTable) return;
-      if (!bonusesPerTable[currentTable]) {
-        bonusesPerTable[currentTable] = [];
-      }
-      bonusesPerTable[currentTable].push(amount);
-      renderOrder();
-      updateTotalPrice();
-    }
-
-    function removeBonus(index) {
-      if (!currentTable || !bonusesPerTable[currentTable]) return;
-      bonusesPerTable[currentTable].splice(index, 1);
-      renderOrder();
-      updateTotalPrice();
-    }
-
-    function printOrder() {
-      if (!currentTable || !tavoli[currentTable]) return;
 
       const orderItems = tavoli[currentTable];
-      const bonuses = bonusesPerTable[currentTable] || [];
+      const totaleOrdine = orderItems.reduce((sum, itemName) => {
+        const item = items.find(i => i.name === itemName);
+        return sum + (item ? item.price : 0);
+      }, 0);
 
-      const itemCounts = {};
-      orderItems.forEach(item => {
-        itemCounts[item] = (itemCounts[item] || 0) + 1;
-      });
+      const pacchettoOrdine = {
+        tavolo: currentTable,
+        piatti: orderItems,
+        totale: totaleOrdine
+      };
 
-      const printWindow = window.open('', '_blank', 'width=600,height=400');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Scontrino</title>
-            <style>
-              body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; }
-              .container { padding: 20px; }
-              .title { text-align: center; font-size: 18px; font-weight: bold; }
-              .item { display: flex; justify-content: space-between; }
-              .footer { text-align: right; font-weight: bold; margin-top: 20px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <img src="logo.png" alt="Logo" style="max-height: 80px; display: block; margin: 0 auto;">
-              <h2 class="title">Riepilogo Ordine - Tavolo: ${currentTable}</h2>
-              <div>
-                <h3>Dettaglio Ordine:</h3>
-                <ul>
-                  ${Object.entries(itemCounts).map(([itemName, count]) => {
-                    const item = items.find(i => i.name === itemName);
-                    const totalPrice = item ? item.price * count : 0;
-                    return `
-                      <li class="item">
-                        <span>${itemName} x${count}</span>
-                        <span>${totalPrice.toFixed(2)}€</span>
-                      </li>
-                    `;
-                  }).join('')}
-                </ul>
+      socket.emit('nuovo_ordine', pacchettoOrdine);
 
-                ${bonuses.length > 0 ? `
-                  <h3>Bonus:</h3>
-                  <ul>
-                    ${bonuses.map((bonus, idx) => `
-                      <li class="item">
-                        <span>Bonus ${idx + 1}</span>
-                        <span>${bonus.toFixed(2)}€</span>
-                      </li>
-                    `).join('')}
-                  </ul>
-                ` : ''}
-
-                <div class="footer">
-                  Totale: ${(orderItems.reduce((sum, name) => {
-                    const item = items.find(i => i.name === name);
-                    return sum + (item ? item.price : 0);
-                  }, 0) + bonuses.reduce((sum, b) => sum + b, 0)).toFixed(2)}€
-                </div>
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
+      alert(`🚀 Ordine inviato con successo alla cassa per il ${currentTable}!`);
+      
+      tavoli[currentTable] = [];
+      localStorage.setItem('tavoli', JSON.stringify(tavoli));
+      renderOrder();
     }
 
-    function printAllTables() {
-      const printWindow = window.open('', '_blank', 'width=800,height=1000');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Riepilogo Tutti i Tavoli</title>
-            <style>
-              body { font-family: Arial, sans-serif; font-size: 14px; margin: 20px; }
-              .table-section { margin-bottom: 40px; border-bottom: 1px dashed #ccc; padding-bottom: 20px; }
-              .title { font-size: 18px; font-weight: bold; margin-bottom: 10px; text-align: center; }
-              .item { display: flex; justify-content: space-between; }
-              .footer { text-align: right; font-weight: bold; margin-top: 10px; }
-            </style>
-          </head>
-          <body>
-            <img src="logo.png" alt="Logo" style="max-height: 80px; display: block; margin: 0 auto;">
-      `);
-
-      Object.keys(tavoli).forEach(tavolo => {
-        const orderItems = tavoli[tavolo];
-        const bonuses = bonusesPerTable[tavolo] || [];
-
-        const itemCounts = {};
-        orderItems.forEach(item => {
-          itemCounts[item] = (itemCounts[item] || 0) + 1;
-        });
-
-        const total = orderItems.reduce((sum, itemName) => {
-          const item = items.find(i => i.name === itemName);
-          return sum + (item ? item.price : 0);
-        }, 0);
-        const totalBonuses = bonuses.reduce((sum, b) => sum + b, 0);
-        const totalFinal = total + totalBonuses;
-
-        printWindow.document.write(`
-          <div class="table-section">
-            <div class="title">Tavolo: ${tavolo}</div>
-            <ul>
-              ${Object.entries(itemCounts).map(([itemName, count]) => {
-                const item = items.find(i => i.name === itemName);
-                const totalPrice = item ? item.price * count : 0;
-                return `
-                  <li class="item">
-                    <span>${itemName} x${count}</span>
-                    <span>${totalPrice.toFixed(2)}€</span>
-                  </li>
-                `;
-              }).join('')}
-            </ul>
-
-            ${bonuses.length > 0 ? `
-              <h4>Bonus:</h4>
-              <ul>
-                ${bonuses.map((bonus, idx) => `
-                  <li class="item">
-                    <span>Bonus ${idx + 1}</span>
-                    <span>${bonus.toFixed(2)}€</span>
-                  </li>
-                `).join('')}
-              </ul>
-            ` : ''}
-
-            <div class="footer">Totale Tavolo ${tavolo}: ${totalFinal.toFixed(2)}€</div>
-          </div>
-        `);
-      });
-
-      printWindow.document.write(`
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-    }
-
-    function exportToExcel() {
-      const allItemCounts = {};
-      for (const tavolo in tavoli) {
-        tavoli[tavolo].forEach(item => {
-          allItemCounts[item] = (allItemCounts[item] || 0) + 1;
-        });
+    function deleteTable() {
+      if (currentTable && confirm(`Vuoi eliminare il tavolo ${currentTable}?`)) {
+        delete tavoli[currentTable]; localStorage.setItem('tavoli', JSON.stringify(tavoli)); renderTables(); changeTable();
       }
-
-      const data = Object.entries(allItemCounts).map(([name, count]) => ({
-        "Prodotto": name,
-        "Quantità": count
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Riepilogo");
-
-      XLSX.writeFile(workbook, "Quantità.xlsx");
     }
+    function deleteAllTables() {
+      if (confirm("Sei sicuro di voler cancellare tutti i tavoli?")) { localStorage.removeItem('tavoli'); location.reload(); }
+    }
+    function resetOrder() { if (currentTable) { tavoli[currentTable] = []; renderOrder(); } }
 
-    document.addEventListener("DOMContentLoaded", function() {
-      init();
-    });
+    document.addEventListener("DOMContentLoaded", function() { init(); });
   </script>
 </body>
 </html>
