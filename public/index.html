@@ -228,14 +228,16 @@ function flashButton(selector) {
   lastActiveButton = button;
 }
 
-    function addTable() {
-      const tableName = document.getElementById("tavolo").value;
-      if (tableName && !tavoli[tableName]) {
-        tavoli[tableName] = [];
-        localStorage.setItem('tavoli', JSON.stringify(tavoli));
-        renderTables();
-      }
-    }
+function addItem(name) {
+  if (!currentTable) {
+    alert("Per favore, seleziona o aggiungi un tavolo prima di inserire i piatti!");
+    return;
+  }
+  tavoli[currentTable].push(name);
+  localStorage.setItem('tavoli', JSON.stringify(tavoli));
+  renderOrder();
+  flashButton(`button[onclick="addItem('${name}')"]`);
+}
 
     function deleteTable() {
   if (currentTable && confirm(`Vuoi eliminare il tavolo ${currentTable}?`)) {
@@ -536,9 +538,10 @@ function exportToExcel() {
 }
 
 // 👇 QUI AGGIUNGI window.onload
-window.onload = function () {
+// Sostituisci il vecchio blocco window.onload con questo:
+document.addEventListener("DOMContentLoaded", function() {
   init();
-};
+});
   </script>
 
 </body>
