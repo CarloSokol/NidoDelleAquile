@@ -41,8 +41,9 @@ io.on('connection', (socket) => {
 
     // Il gestore seleziona un tavolo e chiede al server quali piatti sono associati ad esso
     socket.on('richiedi_ordine_tavolo', (nomeTavolo) => {
-        // Cerchiamo se esiste un ordine attivo (in accettazione, cucina o pronto) per questo tavolo
-        let ordineTavolo = ordini.find(o => o.tavolo === nomeTavolo);
+        // [FIX] Cerchiamo partendo dall'ultimo ordine inserito (il più recente) usando [...ordini].reverse()
+        // In questo modo evitiamo di prendere vecchi ordini obsoleti dello stesso tavolo
+        let ordineTavolo = [...ordini].reverse().find(o => o.tavolo === nomeTavolo);
         if (ordineTavolo) {
             // Se esiste, mandiamo i piatti all'admin
             socket.emit('risposta_ordine_tavolo', ordineTavolo.piatti);
